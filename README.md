@@ -1,5 +1,7 @@
 # stockanalysis-api-crawler
 
+> 🇨🇳 [中文文档](README_CN.md)
+
 Discover and document the internal REST API endpoints of [stockanalysis.com](https://stockanalysis.com) by simulating an authenticated browser session with Playwright.
 
 ## Background
@@ -58,11 +60,14 @@ pip install -r requirements.txt
 playwright install chromium
 
 # 4. Add your login cookies
-#    - Open stockanalysis.com in Chrome, log in
-#    - Open DevTools → Network → pick any request → right-click → "Copy as cURL"
-#    - Paste the result into a.sh (see a.sh.example for the expected format)
+#    - Open stockanalysis.com in Chrome and log in
+#    - Open DevTools (F12) → Network tab
+#    - Refresh the page
+#    - Find the first request to stockanalysis.com (the main page request)
+#    - Right-click → "Copy as cURL"
+#    - Paste the entire curl command into a.sh
 cp a.sh.example a.sh
-# edit a.sh and replace the -b '...' cookie string with your real cookies
+# paste your copied curl command into a.sh (the crawler extracts cookies and User-Agent from it)
 
 # 5. Run
 python run.py

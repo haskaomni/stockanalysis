@@ -57,12 +57,15 @@ source .venv/bin/activate
 pip install -r requirements.txt
 playwright install chromium
 
-# 4. 添加登�� Cookie
+# 4. 添加登录 Cookie
 #    - 在 Chrome 中打开 stockanalysis.com 并登录
-#    - 打开 DevTools → Network → 右键任意请求 → "Copy as cURL"
-#    - 将结果粘贴到 a.sh 中
+#    - 按 F12 打开开发者工具 → 切换到 Network 标签
+#    - 刷新页面
+#    - 找到第一个对 stockanalysis.com 的请求（主页请求）
+#    - 右键 → "Copy as cURL"
+#    - 将整个 curl 命令粘贴到 a.sh 中
 cp a.sh.example a.sh
-# 编辑 a.sh，替换 -b '...' 中的 Cookie 字符串为你的真实 Cookie
+# 将复制的 curl 命令粘贴到 a.sh（爬虫会自动从中提取 Cookie 和 User-Agent）
 
 # 5. 运行
 python run.py
