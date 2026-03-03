@@ -1,0 +1,23 @@
+# Login cookies — NEVER commit real credentials
+a.sh
+
+# Python virtual environment
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Crawler output — raw_requests.json can be 16MB+, not suitable for git
+output/raw_requests.json
+output/normalized.json
+
+# Keep the generated docs
+!output/api_docs.md
+
+# IDE / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
