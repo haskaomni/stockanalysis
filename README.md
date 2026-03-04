@@ -39,8 +39,9 @@ a.sh  →  cookie_parser.py  →  crawler.py  →  normalizer.py  →  generate_
    - **Phase 2**: Fetches `__data.json` for every route from inside the authenticated browser context — discovers SvelteKit data endpoints.
    - **Phase 3**: Directly probes known `/api/` URL patterns.
 3. **`normalizer.py`** — Filters to `stockanalysis.com/api/*` only, replaces dynamic path segments (`{ticker}`, `{id}`) with placeholders, deduplicates.
-4. **`generate_docs.py`** — Renders `output/api_docs.md` from normalized data.
-5. **`run.py`** — Orchestrates all four steps in sequence.
+4. **`generate_docs.py`** — Renders `output/api_docs.md` from normalized data, including the `__data.json` endpoint section.
+5. **`data_json_parser.py`** — Parser for SvelteKit's devalue-encoded `__data.json` responses. Auto-detects page type and returns structured Python dicts for financials, ETF holdings, market movers, IPOs, and more.
+6. **`run.py`** — Orchestrates all four steps in sequence.
 
 ## Setup
 

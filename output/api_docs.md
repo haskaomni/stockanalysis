@@ -547,3 +547,129 @@ Mini sparkline chart data for the market status widget (pre-market, regular hour
 ```
 
 ---
+
+
+---
+
+## SvelteKit Data Endpoints (`__data.json`)
+
+stockanalysis.com uses SvelteKit's server-side rendering for financial statements, market tables, ETF holdings, and most other data-heavy pages. The data is NOT fetched via a separate REST call on initial page load — it is embedded in the HTML. However, when the SPA navigates between routes client-side, SvelteKit fetches a `__data.json` file to get the new page's data without a full reload.
+
+These endpoints are therefore accessible directly (with authentication cookies) and return the complete page dataset in a compact devalue-encoded format.
+
+### How to use
+
+```
+GET https://stockanalysis.com/{path}/__data.json?x-sveltekit-trailing-slash=1
+```
+
+**Query parameters:**
+
+| Parameter | Description |
+|---|---|
+| `x-sveltekit-trailing-slash=1` | Required. Indicates the path has a trailing slash. |
+| `x-sveltekit-invalidated=011` | Optional bitmask — which layout nodes to refresh (`1`) vs use cached (`0`). Omit to refresh all. |
+| `p` / `period` | For financials: `annual` (default) or `quarterly`. |
+
+**Response format:**
+
+```json
+{
+  "type": "data",
+  "nodes": [
+    { "type": "skip" },
+    { "type": "data", "data": [ ... ] },
+    { "type": "data", "data": [ ... ] }
+  ]
+}
+```
+
+Each node's `data` array uses integer indices for cross-referencing (devalue format).
+Use `data_json_parser.py` to expand it into usable Python dicts.
+
+### Parser
+
+```python
+import asyncio
+from data_json_parser import fetch_and_parse
+
+async def example(page):  # page = authenticated Playwright page
+    # Financial statement
+    result = await fetch_and_parse(page, '/stocks/aapl/financials/')
+    table  = result['data']   # { columns, rows, statement, period, ... }
+    info   = result['info']   # { ticker, name, quote: { price, change_pct, ... } }
+
+    # Market movers
+    result = await fetch_and_parse(page, '/markets/gainers/')
+    movers = result['data']   # { results_count, column_ids, rows }
+
+    # ETF holdings
+    result = await fetch_and_parse(page, '/etf/spy/holdings/')
+    data   = result['data']   # { holdings, sectors, asset_allocation, countries }
+```
+
+### Available routes
+
+| Path | `result['type']` | Key fields in `result['data']` |
+|---|---|---|
+| `/stocks/{ticker}/financials/` | `financials/income-statement` | `columns`, `rows` (metric→values), `heading`, `period`, `source`, `map` |
+| `/stocks/{ticker}/financials/?p=quarterly` | `financials/income-statement (quarterly)` | `columns`, `rows` (metric→values), `heading`, `period`, `source`, `map` |
+| `/stocks/{ticker}/financials/balance-sheet/` | `financials/balance-sheet` | `columns`, `rows` (metric→values), `heading`, `period`, `source`, `map` |
+| `/stocks/{ticker}/financials/cash-flow-statement/` | `financials/cash-flow-statement` | `columns`, `rows` (metric→values), `heading`, `period`, `source`, `map` |
+| `/stocks/{ticker}/financials/ratios/` | `financials/ratios` | `columns`, `rows` (metric→values), `heading`, `period`, `source`, `map` |
+| `/stocks/{ticker}/forecast/` | `forecast` | varies |
+| `/stocks/{ticker}/history/` | `history` | varies |
+| `/etf/{ticker}/holdings/` | `etf/holdings` | `holdings[]`, `sectors[]`, `asset_allocation`, `countries[]` |
+| `/etf/{ticker}/history/` | `etf/history` | varies |
+| `/markets/gainers/` | `markets/movers` | `results_count`, `column_ids` (200+), `rows[]`, `query` |
+| `/markets/losers/` | `markets/movers` | `results_count`, `column_ids` (200+), `rows[]`, `query` |
+| `/markets/active/` | `markets/movers` | `results_count`, `column_ids` (200+), `rows[]`, `query` |
+| `/markets/premarket/` | `markets/movers` | `results_count`, `column_ids` (200+), `rows[]`, `query` |
+| `/markets/afterhours/` | `markets/movers` | `results_count`, `column_ids` (200+), `rows[]`, `query` |
+| `/ipos/calendar/` | `ipos` | `thisWeekData`, `nextWeekData`, `laterData`, `dataPoints` |
+| `/ipos/screener/` | `ipos/screener` | `thisWeekData`, `nextWeekData`, `laterData`, `dataPoints` |
+| `/stocks/screener/` | `screener` | `count`, `data[]`, `dataPoints`, `dataPointCategories` |
+| `/etf/screener/` | `screener` | `count`, `data[]`, `dataPoints`, `dataPointCategories` |
+| `/watchlist/` | `watchlist (auth required)` | `initial` (watchlist quote data per symbol) |
+| `/trending/` | `trending` | varies |
+| `/news/` | `news` | varies |
+| `/analysts/top-stocks/` | `analysts` | varies |
+| `/actions/` | `insider actions` | varies |
+
+### Parsed output examples
+
+**Financial statement** (`/stocks/aapl/financials/`):
+
+```python
+result['type']  # 'financials/income-statement'
+result['info']  # { ticker: 'AAPL', name: 'Apple', quote: { price: 263.75, change_pct: -0.37 } }
+data = result['data']
+data['heading']   # 'Income Statement'
+data['period']    # 'annual'
+data['columns']   # ['TTM', '2025-09-27', '2024-09-28', '2023-09-30', '2022-09-24', '2021-09-25']
+data['rows']['revenue']      # [435617000000, 416161000000, 391035000000, ...]
+data['rows']['grossMargin']  # [0.473, 0.469, 0.462, ...]
+data['rows']['epsdil']       # [6.42, 6.08, 5.61, ...]
+data['map']  # [{ 'id': 'revenue', 'title': 'Revenue', 'class': 'bolded' }, ...]
+```
+
+**ETF holdings** (`/etf/spy/holdings/`):
+
+```python
+result['type']  # 'etf/holdings'
+data = result['data']
+data['holdings'][0]  # { 'no': 1, 'n': 'NVIDIA Corporation', 's': '$NVDA', 'as': '7.53%', 'sh': '284,121,645' }
+data['sectors']      # [{ 'name': 'Technology', 'value': 32.5 }, ...]
+```
+
+**Markets movers** (`/markets/gainers/`):
+
+```python
+result['type']  # 'markets/movers'
+data = result['data']
+data['results_count']  # 1523
+# 200+ available columns, including:
+data['column_ids']  # ['no','s','n','marketCap','price','chg','change','volume',
+#                      'grossMargin','profitMargin','peRatio','roe','roic',
+#                      'revenueGrowth','netIncomeGrowth','fcf', ...]
+```

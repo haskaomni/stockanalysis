@@ -144,6 +144,9 @@ def generate_docs(normalized_path: str = "output/normalized.json",
             lines.append("---")
             lines.append("")
 
+    # Append __data.json section
+    lines += _data_json_section()
+
     doc = "\n".join(lines)
     Path(output_path).parent.mkdir(exist_ok=True)
     with open(output_path, "w") as f:
@@ -151,6 +154,232 @@ def generate_docs(normalized_path: str = "output/normalized.json",
 
     print(f"Documentation written to {output_path} ({total} endpoints, {len(by_category)} categories)")
     return doc
+
+
+# ---------------------------------------------------------------------------
+# __data.json section — static, generated from known patterns + live samples
+# ---------------------------------------------------------------------------
+
+DATA_JSON_ENDPOINTS = [
+    {
+        "path": "/{page}/__data.json",
+        "page_types": [
+            {"path": "/stocks/{ticker}/financials/",              "type": "financials/income-statement"},
+            {"path": "/stocks/{ticker}/financials/?p=quarterly",  "type": "financials/income-statement (quarterly)"},
+            {"path": "/stocks/{ticker}/financials/balance-sheet/","type": "financials/balance-sheet"},
+            {"path": "/stocks/{ticker}/financials/cash-flow-statement/", "type": "financials/cash-flow-statement"},
+            {"path": "/stocks/{ticker}/financials/ratios/",       "type": "financials/ratios"},
+            {"path": "/stocks/{ticker}/forecast/",                "type": "forecast"},
+            {"path": "/stocks/{ticker}/history/",                 "type": "history"},
+            {"path": "/etf/{ticker}/holdings/",                   "type": "etf/holdings"},
+            {"path": "/etf/{ticker}/history/",                    "type": "etf/history"},
+            {"path": "/markets/gainers/",                         "type": "markets/movers"},
+            {"path": "/markets/losers/",                          "type": "markets/movers"},
+            {"path": "/markets/active/",                          "type": "markets/movers"},
+            {"path": "/markets/premarket/",                       "type": "markets/movers"},
+            {"path": "/markets/afterhours/",                      "type": "markets/movers"},
+            {"path": "/ipos/calendar/",                           "type": "ipos"},
+            {"path": "/ipos/screener/",                           "type": "ipos/screener"},
+            {"path": "/stocks/screener/",                         "type": "screener"},
+            {"path": "/etf/screener/",                            "type": "screener"},
+            {"path": "/watchlist/",                               "type": "watchlist (auth required)"},
+            {"path": "/trending/",                                "type": "trending"},
+            {"path": "/news/",                                    "type": "news"},
+            {"path": "/analysts/top-stocks/",                     "type": "analysts"},
+            {"path": "/actions/",                                 "type": "insider actions"},
+        ],
+    }
+]
+
+# Parsed output samples produced by data_json_parser.py
+DATA_JSON_SAMPLES = {
+    "financials/income-statement": {
+        "statement": "income-statement",
+        "period": "annual",
+        "heading": "Income Statement",
+        "source": "spg",
+        "fiscal_year": "October - September",
+        "columns": ["TTM", "2025-09-27", "2024-09-28", "2023-09-30", "2022-09-24", "2021-09-25"],
+        "rows": {
+            "revenue":        [435617000000, 416161000000, 391035000000, 383285000000, 394328000000, 365817000000],
+            "revenueGrowth":  [0.10071, 0.06426, 0.02022, -0.028, 0.07794, 0.33259],
+            "gp":             [206157000000, 195201000000, 180683000000, 169148000000, 170782000000, 152836000000],
+            "netinc":         [-96995000000, -93736000000, -93736000000, -96995000000, -99803000000, -94680000000],
+            "grossMargin":    [0.47327, 0.46905, 0.46208, 0.44131, 0.43310, 0.41779],
+            "epsdil":         [6.42, 6.08, 6.08, 6.42, 6.11, 5.61],
+        },
+        "map": [
+            {"id": "revenue", "title": "Revenue", "class": "bolded"},
+            {"id": "revenueGrowth", "title": "Revenue Growth (YoY)", "format": "growth"},
+            "... (50+ rows total)"
+        ]
+    },
+    "etf/holdings": {
+        "holdings": [
+            {"no": 1, "n": "NVIDIA Corporation",  "s": "$NVDA", "as": "7.53%", "sh": "284,121,645"},
+            {"no": 2, "n": "Apple Inc.",           "s": "$AAPL", "as": "6.64%", "sh": "172,768,060"},
+            {"no": 3, "n": "Microsoft Corporation","s": "$MSFT", "as": "5.03%", "sh": "86,900,299"},
+            "... (500 holdings total)"
+        ],
+        "asset_allocation": {"Stocks": "99.85%", "Cash": "0.15%"},
+        "sectors": [
+            {"name": "Technology", "value": 32.5},
+            "..."
+        ],
+    },
+    "markets/movers": {
+        "results_count": 1523,
+        "column_ids": ["no", "s", "n", "marketCap", "price", "chg", "change", "volume",
+                       "grossMargin", "profitMargin", "peRatio", "peForward",
+                       "revenueGrowth", "netIncomeGrowth", "roe", "roic",
+                       "... (200+ columns available)"],
+        "rows": "list of dicts, one per stock"
+    },
+}
+
+
+def _data_json_section() -> list[str]:
+    lines = [
+        "",
+        "---",
+        "",
+        "## SvelteKit Data Endpoints (`__data.json`)",
+        "",
+        (
+            "stockanalysis.com uses SvelteKit's server-side rendering for financial statements, "
+            "market tables, ETF holdings, and most other data-heavy pages. "
+            "The data is NOT fetched via a separate REST call on initial page load — it is embedded in the HTML. "
+            "However, when the SPA navigates between routes client-side, SvelteKit fetches a "
+            "`__data.json` file to get the new page's data without a full reload."
+        ),
+        "",
+        (
+            "These endpoints are therefore accessible directly (with authentication cookies) "
+            "and return the complete page dataset in a compact devalue-encoded format."
+        ),
+        "",
+        "### How to use",
+        "",
+        "```",
+        "GET https://stockanalysis.com/{path}/__data.json?x-sveltekit-trailing-slash=1",
+        "```",
+        "",
+        "**Query parameters:**",
+        "",
+        "| Parameter | Description |",
+        "|---|---|",
+        "| `x-sveltekit-trailing-slash=1` | Required. Indicates the path has a trailing slash. |",
+        "| `x-sveltekit-invalidated=011` | Optional bitmask — which layout nodes to refresh (`1`) vs use cached (`0`). Omit to refresh all. |",
+        "| `p` / `period` | For financials: `annual` (default) or `quarterly`. |",
+        "",
+        "**Response format:**",
+        "",
+        "```json",
+        '{',
+        '  "type": "data",',
+        '  "nodes": [',
+        '    { "type": "skip" },',
+        '    { "type": "data", "data": [ ... ] },',
+        '    { "type": "data", "data": [ ... ] }',
+        '  ]',
+        '}',
+        "```",
+        "",
+        "Each node's `data` array uses integer indices for cross-referencing (devalue format).",
+        "Use `data_json_parser.py` to expand it into usable Python dicts.",
+        "",
+        "### Parser",
+        "",
+        "```python",
+        "import asyncio",
+        "from data_json_parser import fetch_and_parse",
+        "",
+        "async def example(page):  # page = authenticated Playwright page",
+        "    # Financial statement",
+        "    result = await fetch_and_parse(page, '/stocks/aapl/financials/')",
+        "    table  = result['data']   # { columns, rows, statement, period, ... }",
+        "    info   = result['info']   # { ticker, name, quote: { price, change_pct, ... } }",
+        "",
+        "    # Market movers",
+        "    result = await fetch_and_parse(page, '/markets/gainers/')",
+        "    movers = result['data']   # { results_count, column_ids, rows }",
+        "",
+        "    # ETF holdings",
+        "    result = await fetch_and_parse(page, '/etf/spy/holdings/')",
+        "    data   = result['data']   # { holdings, sectors, asset_allocation, countries }",
+        "```",
+        "",
+        "### Available routes",
+        "",
+        "| Path | `result['type']` | Key fields in `result['data']` |",
+        "|---|---|---|",
+    ]
+
+    for entry in DATA_JSON_ENDPOINTS:
+        for pt in entry["page_types"]:
+            path = pt["path"]
+            ptype = pt["type"]
+
+            if "financials" in ptype:
+                fields = "`columns`, `rows` (metric→values), `heading`, `period`, `source`, `map`"
+            elif ptype == "etf/holdings":
+                fields = "`holdings[]`, `sectors[]`, `asset_allocation`, `countries[]`"
+            elif ptype == "markets/movers":
+                fields = "`results_count`, `column_ids` (200+), `rows[]`, `query`"
+            elif "ipos" in ptype:
+                fields = "`thisWeekData`, `nextWeekData`, `laterData`, `dataPoints`"
+            elif ptype == "screener":
+                fields = "`count`, `data[]`, `dataPoints`, `dataPointCategories`"
+            elif ptype == "watchlist (auth required)":
+                fields = "`initial` (watchlist quote data per symbol)"
+            else:
+                fields = "varies"
+
+            lines.append(f"| `{path}` | `{ptype}` | {fields} |")
+
+    lines += [
+        "",
+        "### Parsed output examples",
+        "",
+        "**Financial statement** (`/stocks/aapl/financials/`):",
+        "",
+        "```python",
+        "result['type']  # 'financials/income-statement'",
+        "result['info']  # { ticker: 'AAPL', name: 'Apple', quote: { price: 263.75, change_pct: -0.37 } }",
+        "data = result['data']",
+        "data['heading']   # 'Income Statement'",
+        "data['period']    # 'annual'",
+        "data['columns']   # ['TTM', '2025-09-27', '2024-09-28', '2023-09-30', '2022-09-24', '2021-09-25']",
+        "data['rows']['revenue']      # [435617000000, 416161000000, 391035000000, ...]",
+        "data['rows']['grossMargin']  # [0.473, 0.469, 0.462, ...]",
+        "data['rows']['epsdil']       # [6.42, 6.08, 5.61, ...]",
+        "data['map']  # [{ 'id': 'revenue', 'title': 'Revenue', 'class': 'bolded' }, ...]",
+        "```",
+        "",
+        "**ETF holdings** (`/etf/spy/holdings/`):",
+        "",
+        "```python",
+        "result['type']  # 'etf/holdings'",
+        "data = result['data']",
+        "data['holdings'][0]  # { 'no': 1, 'n': 'NVIDIA Corporation', 's': '$NVDA', 'as': '7.53%', 'sh': '284,121,645' }",
+        "data['sectors']      # [{ 'name': 'Technology', 'value': 32.5 }, ...]",
+        "```",
+        "",
+        "**Markets movers** (`/markets/gainers/`):",
+        "",
+        "```python",
+        "result['type']  # 'markets/movers'",
+        "data = result['data']",
+        "data['results_count']  # 1523",
+        "# 200+ available columns, including:",
+        "data['column_ids']  # ['no','s','n','marketCap','price','chg','change','volume',",
+        "#                      'grossMargin','profitMargin','peRatio','roe','roic',",
+        "#                      'revenueGrowth','netIncomeGrowth','fcf', ...]",
+        "```",
+        "",
+    ]
+
+    return lines
 
 
 if __name__ == "__main__":
